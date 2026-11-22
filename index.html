@@ -1,0 +1,87 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Control de Pedidos</title>
+  
+  <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Pedidos">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <meta name="theme-color" content="#00695C">
+
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+
+  <!-- PANTALLA DE ACTIVACIÓN / LICENCIA (Oculta la app si no está activada) -->
+  <div id="licenseGateOverlay" class="license-overlay" style="display: none;">
+    <div class="license-card">
+      <div class="license-icon">🔐</div>
+      <h2>Activación requerida</h2>
+      <p>Para usar <strong>Control de Pedidos</strong> ingresa tu código de licencia o suscripción.</p>
+      
+      <div class="form-group" style="margin-top: 16px;">
+        <input type="text" id="inputLicenseCode" class="input-box" placeholder="XXXX-XXXX-XXXX" style="text-align: center; text-transform: uppercase; font-weight: bold; letter-spacing: 2px;">
+      </div>
+
+      <div id="licenseError" class="license-error" style="display: none;"></div>
+
+      <button id="btnRedeemLicense" class="btn btn-primary" onclick="window.App.redeemLicense()">
+        Activar Aplicación
+      </button>
+
+      <div class="license-footer">
+        Genera o consulta tu código en tu app <strong>LicenciasAdmin</strong> (Slug: <code>pedidosweb</code>).
+      </div>
+    </div>
+  </div>
+
+  <!-- APLICACIÓN PRINCIPAL -->
+  <header>
+    <div class="top-bar">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <button id="btnBack" class="top-bar-btn" style="display: none;" onclick="window.App.goBack()">
+          ← Atrás
+        </button>
+        <h1 id="appTitle">Pedidos pendientes</h1>
+      </div>
+      <div>
+        <button id="btnBackup" class="top-bar-btn" onclick="window.App.openBackup()">
+          💾 Respaldo
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="appContent"></main>
+
+  <button id="btnFab" class="fab" onclick="window.App.openNewOrder()">
+    ＋ Nuevo pedido
+  </button>
+
+  <nav id="bottomNav" class="bottom-nav">
+    <button class="nav-tab active" onclick="window.App.switchTab('cuentas')">
+      <span class="nav-icon">🧾</span>
+      <span class="nav-label">Cuentas</span>
+    </button>
+    <button class="nav-tab" onclick="window.App.switchTab('registro')">
+      <span class="nav-icon">📅</span>
+      <span class="nav-label">Registro</span>
+    </button>
+    <button class="nav-tab" onclick="window.App.switchTab('catalogo')">
+      <span class="nav-icon">👥</span>
+      <span class="nav-label">Catálogo</span>
+    </button>
+  </nav>
+
+  <div id="modalContainer"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

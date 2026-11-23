@@ -101,7 +101,7 @@ export const Store = {
   },
 
   deleteCliente(id) {
-    if (this.data.cuentas.some(c => c.clienteId === id && !c.fechaLiquidacion)) {
+    if (this.data.cuentas.some(c => c.clienteId === id && !c.fechaLiquidacion && ((c.articulos || []).length > 0 || (c.abonos || []).length > 0))) {
       return false;
     }
     this.data.clientes = this.data.clientes.filter(c => c.id !== id);
@@ -134,11 +134,11 @@ export const Store = {
   },
 
   getCuentasActivas() {
-    return this.data.cuentas.filter(c => !c.fechaLiquidacion);
+    return this.data.cuentas.filter(c => !c.fechaLiquidacion && ((c.articulos || []).length > 0 || (c.abonos || []).length > 0));
   },
 
   getCuentaActiva(clienteId) {
-    return this.data.cuentas.find(c => c.clienteId === clienteId && !c.fechaLiquidacion);
+    return this.data.cuentas.find(c => c.clienteId === clienteId && !c.fechaLiquidacion && ((c.articulos || []).length > 0 || (c.abonos || []).length > 0));
   },
 
   getCuenta(id) {

@@ -441,6 +441,9 @@ Object.assign(Screens, {
               <button class="btn btn-outlined" onclick="window.App.openNewOrder('${cliente.id}')">＋ Agregar prenda</button>
               <button class="btn btn-primary" onclick="window.Screens.modalAbonar('${cuenta.id}')">💵 Abonar</button>
             </div>
+            <button class="btn btn-outlined" style="color: var(--red); border-color: var(--red);" onclick="window.Screens.eliminarCuentaTotal('${cuenta.id}')">
+              🗑️ Eliminar cuenta
+            </button>
           ` : `
             <div style="display: flex; gap: 8px;">
               <button class="btn btn-outlined" onclick="window.App.openNewOrder('${cliente.id}')">＋ Nuevo pedido</button>
@@ -598,6 +601,13 @@ Object.assign(Screens, {
       return;
     }
     window.App.render();
+  },
+
+  eliminarCuentaTotal(cuentaId) {
+    if (!confirm("¿Deseas eliminar por completo esta cuenta y todo su registro?")) return;
+    Store.data.cuentas = Store.data.cuentas.filter(c => c.id !== cuentaId);
+    Store.save();
+    window.App.goBack();
   },
 
   modalEditarCliente(clienteId) {

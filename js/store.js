@@ -151,10 +151,11 @@ export const Store = {
     const utilidad = total - costoRealTotal;
     const abonado = (cuenta.abonos || []).reduce((acc, ab) => acc + ab.monto, 0);
     const resta = Math.max(0, total - abonado);
+    const saldoAFavor = Math.max(0, abonado - total);
     const piezas = (cuenta.articulos || []).reduce((acc, a) => acc + a.cantidad, 0);
     const progreso = total <= 0 ? 0 : Math.min(1, abonado / total);
     const liquidada = !!cuenta.fechaLiquidacion;
-    return { total, costoRealTotal, utilidad, abonado, resta, piezas, progreso, liquidada };
+    return { total, costoRealTotal, utilidad, abonado, resta, saldoAFavor, piezas, progreso, liquidada };
   },
 
   checkLiquidacion(cuenta) {

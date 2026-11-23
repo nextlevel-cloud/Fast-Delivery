@@ -160,7 +160,7 @@ Object.assign(Screens, {
           <div class="totales-row"><span>Total cuenta</span><span id="resTotalCuenta" style="font-weight: bold;">$0.00</span></div>
           <div class="totales-row"><span>Abonado</span><span id="resAbonado">$0.00</span></div>
           <div class="totales-row" style="margin-top: 6px; border-top: 1px dashed var(--border); padding-top: 6px;">
-            <strong>Resta por liquidar</strong>
+            <strong id="resRestaLabel">Resta por liquidar</strong>
             <strong id="resResta" style="color: var(--red); font-size: 1.15rem;">$0.00</strong>
           </div>
         </div>
@@ -331,12 +331,23 @@ Object.assign(Screens, {
     const tot = prevTotal + subtotal;
     const abo = prevAbono + abono;
     const res = Math.max(0, tot - abo);
+    const favor = Math.max(0, abo - tot);
 
     if (document.getElementById('resEstaPrenda')) {
       document.getElementById('resEstaPrenda').textContent = Store.formatMoney(subtotal);
       document.getElementById('resTotalCuenta').textContent = Store.formatMoney(tot);
       document.getElementById('resAbonado').textContent = Store.formatMoney(abo);
-      document.getElementById('resResta').textContent = Store.formatMoney(res);
+      const lbl = document.getElementById('resRestaLabel');
+      const valEl = document.getElementById('resResta');
+      if (favor > 0.005) {
+        if (lbl) lbl.textContent = 'Saldo a favor del cliente';
+        valEl.textContent = Store.formatMoney(favor);
+        valEl.style.color = '#1565C0';
+      } else {
+        if (lbl) lbl.textContent = 'Resta por liquidar';
+        valEl.textContent = Store.formatMoney(res);
+        valEl.style.color = 'var(--red)';
+      }
     }
   },
 
@@ -425,7 +436,10 @@ Object.assign(Screens, {
           <div class="totales-row" style="margin-top: 14px;">
             <div class="totales-col"><span class="totales-label">Total</span><span class="totales-val grande">${Store.formatMoney(t.total)}</span></div>
             <div class="totales-col"><span class="totales-label">Abonado</span><span class="totales-val grande" style="color: var(--green);">${Store.formatMoney(t.abonado)}</span></div>
-            <div class="totales-col"><span class="totales-label">Resta</span><span class="totales-val grande" style="color: ${t.resta > 0 ? 'var(--red)' : 'var(--green)'};">${Store.formatMoney(t.resta)}</span></div>
+            ${t.saldoAFavor > 0.005 ?
+              `<div class="totales-col"><span class="totales-label">Saldo a favor</span><span class="totales-val grande" style="color: #1565C0;">${Store.formatMoney(t.saldoAFavor)}</span></div>` :
+              `<div class="totales-col"><span class="totales-label">Resta</span><span class="totales-val grande" style="color: ${t.resta > 0 ? 'var(--red)' : 'var(--green)'};">${Store.formatMoney(t.resta)}</span></div>`
+            }
           </div>
           <div class="progreso-bar" style="height: 10px;">
             <div class="progreso-val" style="width: ${(t.progreso * 100)}%;"></div>
@@ -519,17 +533,17 @@ Object.assign(Screens, {
     const monto = parseFloat(document.getElementById('dlgMontoAbono').value) || 0;
     const nota = document.getElementById('dlgNotaAbono').value.trim();
     if (monto <= 0) return;
-    const cuenta = Store.getCuenta(cuentaId);
-    const t = Store.calcularTotales(cuenta);
-    if (monto > t.resta + 0.01) {
-      alert(`El monto no puede ser mayor a la resta (${Store.formatMoney(t.resta)})`);
-      return;
-    }
     const liquidada = Store.addAbono(cuentaId, monto, nota);
     this.closeModal();
     window.App.render();
     if (liquidada) {
-      alert("🎉 ¡Cuenta liquidada y guardada en el registro del mes!");
+      const c = Store.getCuenta(cuentaId);
+      const t = Store.calcularTotales(c);
+      if (t.saldoAFavor > 0.005) {
+        alert(`🎉 ¡Cuenta liquidada! El cliente queda con un saldo a favor de ${Store.formatMoney(t.saldoAFavor)}.`);
+      } else {
+        alert("🎉 ¡Cuenta liquidada y guardada en el registro del mes!");
+      }
     }
   },
 
@@ -560,7 +574,10 @@ Object.assign(Screens, {
 
     msg += `Total: *${cleanMoney(t.total)}*\n`;
     msg += `Abonado: *${cleanMoney(t.abonado)}*\n`;
-    if (cuenta.fechaLiquidacion || t.resta <= 0) {
+    if (t.saldoAFavor > 0.005) {
+      msg += `Saldo a favor: *${cleanMoney(t.saldoAFavor)}*\n\n`;
+      msg += `✅ *¡Tu cuenta está LIQUIDADA y tienes saldo a favor!* Muchas gracias por tu compra 🙌`;
+    } else if (cuenta.fechaLiquidacion || t.resta <= 0) {
       msg += `Resta por pagar: *${cleanMoney(0)}*\n\n`;
       msg += `✅ *¡Tu cuenta está LIQUIDADA! Muchas gracias por tu compra* 🙌`;
     } else {
@@ -709,6 +726,7 @@ Object.assign(Screens, {
     const totalMes = liquidadas.reduce((acc, c) => acc + Store.calcularTotales(c).total, 0);
     const costoRealMes = liquidadas.reduce((acc, c) => acc + Store.calcularTotales(c).costoRealTotal, 0);
     const utilidadMes = totalMes - costoRealMes;
+    const saldoAFavorMes = liquidadas.reduce((acc, c) => acc + Store.calcularTotales(c).saldoAFavor, 0);
     const totalPiezas = liquidadas.reduce((acc, c) => acc + Store.calcularTotales(c).piezas, 0);
 
     const fechaD = new Date(year, month, 1);
@@ -738,6 +756,13 @@ Object.assign(Screens, {
             </div>
           </div>
 
+          ${saldoAFavorMes > 0.005 ? `
+            <div style="display: flex; justify-content: space-between; margin-top: 8px; padding-top: 6px; border-top: 1px dashed rgba(0,105,92,0.2); color: #1565C0;">
+              <span style="font-size: 0.85rem; font-weight: 600;">Saldo a favor de clientes</span>
+              <strong style="font-size: 0.95rem;">${Store.formatMoney(saldoAFavorMes)}</strong>
+            </div>
+          ` : ''}
+
           <div style="font-size: 0.85rem; color: var(--secondary); margin-top: 8px;">
             ${liquidadas.length} cuenta(s) • ${totalPiezas} prenda(s)
           </div>
@@ -761,6 +786,7 @@ Object.assign(Screens, {
                 <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">
                   Liquidada el ${Store.formatDate(c.fechaLiquidacion)} • ${t.piezas} pieza(s)
                 </div>
+                ${t.saldoAFavor > 0.005 ? `<div style="font-size: 0.8rem; color: #1565C0; font-weight: 700; margin-top: 2px;">Saldo a favor del cliente: ${Store.formatMoney(t.saldoAFavor)}</div>` : ''}
                 <div style="font-size: 0.8rem; margin-top: 2px;">
                   ${c.articulos.map(a => `${a.cantidad} ${a.producto}`).join(', ')}
                 </div>
@@ -823,19 +849,24 @@ Object.assign(Screens, {
 
     const rows = [];
     let grandTotal = 0;
+    let grandCostoReal = 0;
+    let grandSaldoFavor = 0;
     let totalPzas = 0;
 
     liquidadas.forEach(c => {
       const cl = Store.getCliente(c.clienteId);
       const t = Store.calcularTotales(c);
       grandTotal += t.total;
+      grandCostoReal += t.costoRealTotal;
+      grandSaldoFavor += t.saldoAFavor;
       totalPzas += t.piezas;
 
       const detalleArts = c.articulos.map(a => `${a.cantidad}x ${a.producto} (${Store.formatMoney(a.precioUnitario)})`).join('\n');
+      const notaFavor = t.saldoAFavor > 0.005 ? `\n[Saldo a favor cliente: ${Store.formatMoney(t.saldoAFavor)}]` : '';
 
       rows.push([
         Store.formatDate(c.fechaLiquidacion),
-        (cl ? cl.nombre : '(eliminado)') + '\n' + detalleArts,
+        (cl ? cl.nombre : '(eliminado)') + '\n' + detalleArts + notaFavor,
         t.piezas,
         c.abonos.length,
         Store.formatMoney(t.total)
@@ -857,9 +888,14 @@ Object.assign(Screens, {
     });
 
     const finalY = doc.lastAutoTable.finalY || 40;
-    doc.setFontSize(12);
+    doc.setFontSize(11);
     doc.setTextColor(30, 41, 59);
-    doc.text(`Total Liquidado: ${Store.formatMoney(grandTotal)}   •   Total Piezas: ${totalPzas}`, 14, finalY + 12);
+    doc.text(`Total Liquidado: ${Store.formatMoney(grandTotal)}   •   Total Piezas: ${totalPzas}`, 14, finalY + 10);
+    doc.text(`Costo Real (Inversión): ${Store.formatMoney(grandCostoReal)}   •   Utilidad Neta: ${Store.formatMoney(grandTotal - grandCostoReal)}`, 14, finalY + 17);
+    if (grandSaldoFavor > 0.005) {
+      doc.setTextColor(21, 101, 192);
+      doc.text(`Saldo a favor de clientes (no es utilidad): ${Store.formatMoney(grandSaldoFavor)}`, 14, finalY + 24);
+    }
 
     return doc;
   },

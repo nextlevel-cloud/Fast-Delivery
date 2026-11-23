@@ -533,7 +533,7 @@ Object.assign(Screens, {
     }
   },
 
-  enviarWhatsApp(cuentaId) {
+  armarMensajeWhatsApp(cuentaId) {
     const cuenta = Store.getCuenta(cuentaId);
     const cliente = Store.getCliente(cuenta.clienteId);
     const t = Store.calcularTotales(cuenta);
@@ -568,6 +568,39 @@ Object.assign(Screens, {
       msg += `¡Gracias por tu preferencia! 🙌`;
     }
 
+    return { msg, cliente };
+  },
+
+  enviarWhatsApp(cuentaId) {
+    const cuenta = Store.getCuenta(cuentaId);
+    const cliente = Store.getCliente(cuenta.clienteId);
+    const modal = `
+      <div class="modal-backdrop">
+        <div class="modal-box">
+          <div class="modal-title">Enviar por WhatsApp</div>
+          <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 14px;">
+            ¿Cómo deseas enviar el estado de cuenta a <strong>${cliente.nombre}</strong>?
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <button class="btn btn-whatsapp" onclick="window.Screens.closeModal(); window.Screens.enviarSoloTextoWhatsApp('${cuentaId}')">
+              💬 Solo texto
+            </button>
+            <input type="file" id="inputFotosWhatsApp" accept="image/*" multiple style="display: none;" onchange="window.Screens.enviarConFotosWhatsApp('${cuentaId}', this)">
+            <button class="btn btn-outlined" onclick="document.getElementById('inputFotosWhatsApp').click()">
+              🖼️ Texto + seleccionar fotos
+            </button>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-outlined btn-sm" onclick="window.Screens.closeModal()">Cancelar</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('modalContainer').innerHTML = modal;
+  },
+
+  enviarSoloTextoWhatsApp(cuentaId) {
+    const { msg, cliente } = this.armarMensajeWhatsApp(cuentaId);
     let digitos = (cliente.telefono || '').replace(/\D/g, '');
     if (digitos.length === 10) digitos = '52' + digitos;
 
@@ -576,6 +609,32 @@ Object.assign(Screens, {
       `https://wa.me/?text=${encodeURIComponent(msg)}`;
 
     window.open(url, '_blank');
+  },
+
+  async enviarConFotosWhatsApp(cuentaId, input) {
+    const files = Array.from(input.files || []);
+    this.closeModal();
+    if (files.length === 0) return;
+
+    const { msg } = this.armarMensajeWhatsApp(cuentaId);
+    try {
+      if (navigator.canShare && navigator.canShare({ files })) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(msg).catch(() => {});
+        }
+        await navigator.share({
+          text: msg,
+          files: files
+        });
+      } else {
+        alert("Tu navegador no permite compartir fotos junto al texto directamente. Se abrirá WhatsApp con el texto para que adjuntes las fotos desde ahí.");
+        this.enviarSoloTextoWhatsApp(cuentaId);
+      }
+    } catch (e) {
+      if (e.name !== 'AbortError') {
+        alert("No se pudieron compartir las fotos: " + e.message);
+      }
+    }
   },
 
   eliminarArticulo(cuentaId, articuloId) {

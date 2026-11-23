@@ -684,8 +684,8 @@ Object.assign(Screens, {
           </div>
         </div>
 
-        <button class="btn btn-primary" style="margin-bottom: 14px;" onclick="window.Screens.descargarPDF('${nomMesCap}', ${year}, ${month})">
-          📄 Descargar PDF para contaduría
+        <button class="btn btn-primary" style="margin-bottom: 14px;" onclick="window.Screens.modalOpcionesPDF('${nomMesCap}', ${year}, ${month})">
+          📄 PDF para contaduría
         </button>
 
         <div>
@@ -720,10 +720,35 @@ Object.assign(Screens, {
     window.App.render();
   },
 
-  descargarPDF(titulo, year, month) {
+  modalOpcionesPDF(titulo, year, month) {
+    const modal = `
+      <div class="modal-backdrop">
+        <div class="modal-box">
+          <div class="modal-title">PDF para contaduría</div>
+          <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 14px;">
+            ¿Qué deseas hacer con el registro de <strong>${titulo}</strong>?
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <button class="btn btn-primary" onclick="window.Screens.closeModal(); window.Screens.descargarPDF('${titulo}', ${year}, ${month})">
+              ⬇️ Descargar PDF
+            </button>
+            <button class="btn btn-outlined" onclick="window.Screens.closeModal(); window.Screens.compartirPDF('${titulo}', ${year}, ${month})">
+              📤 Compartir PDF
+            </button>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-outlined btn-sm" onclick="window.Screens.closeModal()">Cancelar</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('modalContainer').innerHTML = modal;
+  },
+
+  generarDocPDF(titulo, year, month) {
     if (!window.jspdf) {
       alert("Cargando motor PDF...");
-      return;
+      return null;
     }
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -777,7 +802,37 @@ Object.assign(Screens, {
     doc.setTextColor(30, 41, 59);
     doc.text(`Total Liquidado: ${Store.formatMoney(grandTotal)}   •   Total Piezas: ${totalPzas}`, 14, finalY + 12);
 
+    return doc;
+  },
+
+  descargarPDF(titulo, year, month) {
+    const doc = this.generarDocPDF(titulo, year, month);
+    if (!doc) return;
     doc.save(`Registro_${year}_${String(month + 1).padStart(2, '0')}.pdf`);
+  },
+
+  async compartirPDF(titulo, year, month) {
+    const doc = this.generarDocPDF(titulo, year, month);
+    if (!doc) return;
+    const nombre = `Registro_${year}_${String(month + 1).padStart(2, '0')}.pdf`;
+    try {
+      const blob = doc.output('blob');
+      const file = new File([blob], nombre, { type: 'application/pdf' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: `Registro ${titulo}`,
+          text: `Registro de ventas liquidadas - ${titulo}`,
+          files: [file]
+        });
+      } else {
+        doc.save(nombre);
+        alert("Tu navegador no soporta compartir archivos directamente. El PDF se descargó para que puedas enviarlo.");
+      }
+    } catch (e) {
+      if (e.name !== 'AbortError') {
+        alert("No se pudo compartir el PDF: " + e.message);
+      }
+    }
   },
 
   renderCatalogo() {

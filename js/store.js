@@ -147,12 +147,14 @@ export const Store = {
 
   calcularTotales(cuenta) {
     const total = (cuenta.articulos || []).reduce((acc, a) => acc + (a.cantidad * a.precioUnitario), 0);
+    const costoRealTotal = (cuenta.articulos || []).reduce((acc, a) => acc + (a.cantidad * (a.precioReal || 0)), 0);
+    const utilidad = total - costoRealTotal;
     const abonado = (cuenta.abonos || []).reduce((acc, ab) => acc + ab.monto, 0);
     const resta = Math.max(0, total - abonado);
     const piezas = (cuenta.articulos || []).reduce((acc, a) => acc + a.cantidad, 0);
     const progreso = total <= 0 ? 0 : Math.min(1, abonado / total);
     const liquidada = !!cuenta.fechaLiquidacion;
-    return { total, abonado, resta, piezas, progreso, liquidada };
+    return { total, costoRealTotal, utilidad, abonado, resta, piezas, progreso, liquidada };
   },
 
   checkLiquidacion(cuenta) {
@@ -165,10 +167,10 @@ export const Store = {
     }
   },
 
-  addArticulo(clienteId, producto, cantidad, precioUnitario, abonoInicial = 0) {
+  addArticulo(clienteId, producto, cantidad, precioUnitario, precioReal = 0, abonoInicial = 0) {
     const prod = this.addProducto(producto);
     const ahora = Date.now();
-    const art = { id: this.uuid(), producto: prod, cantidad: parseInt(cantidad), precioUnitario: parseFloat(precioUnitario), fecha: ahora };
+    const art = { id: this.uuid(), producto: prod, cantidad: parseInt(cantidad), precioUnitario: parseFloat(precioUnitario), precioReal: parseFloat(precioReal) || 0, fecha: ahora };
     let cuenta = this.getCuentaActiva(clienteId);
     if (!cuenta) {
       cuenta = { id: this.uuid(), clienteId, articulos: [art], abonos: [], fechaCreacion: ahora, fechaLiquidacion: null };
@@ -232,3 +234,4 @@ export const Store = {
     });
   }
 };
+

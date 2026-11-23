@@ -143,7 +143,11 @@ Object.assign(Screens, {
           </div>
 
           <div class="form-group">
-            <input type="number" id="nuevoPrecio" class="input-box" placeholder="Costo por pieza ($)" step="any" oninput="window.Screens.calcResumenNuevo()">
+            <input type="number" id="nuevoPrecioReal" class="input-box" placeholder="Precio real (lo que te costó a ti - $)" step="any" oninput="window.Screens.calcResumenNuevo()">
+          </div>
+
+          <div class="form-group">
+            <input type="number" id="nuevoPrecio" class="input-box" placeholder="Costo por pieza (al cliente - $)" step="any" oninput="window.Screens.calcResumenNuevo()">
           </div>
 
           <div class="form-group">
@@ -340,6 +344,7 @@ Object.assign(Screens, {
     const inputCli = document.getElementById('nuevoCliente').value.trim();
     const inputProd = document.getElementById('nuevoProducto').value.trim();
     const cant = parseInt(document.getElementById('nuevoCantidad').value) || 0;
+    const precioReal = parseFloat(document.getElementById('nuevoPrecioReal')?.value) || 0;
     const precio = parseFloat(document.getElementById('nuevoPrecio').value) || 0;
     const abono = parseFloat(document.getElementById('nuevoAbono').value) || 0;
 
@@ -372,12 +377,13 @@ Object.assign(Screens, {
       return;
     }
 
-    const cuentaId = Store.addArticulo(this.selectedClienteId, inputProd, cant, precio, abono);
+    const cuentaId = Store.addArticulo(this.selectedClienteId, inputProd, cant, precio, precioReal, abono);
     this.ultimaCuentaId = cuentaId;
 
     if (seguirAgregando) {
       document.getElementById('nuevoProducto').value = '';
       document.getElementById('nuevoCantidad').value = '1';
+      if (document.getElementById('nuevoPrecioReal')) document.getElementById('nuevoPrecioReal').value = '';
       document.getElementById('nuevoPrecio').value = '';
       document.getElementById('nuevoAbono').value = '';
       this.calcResumenNuevo();
@@ -632,6 +638,8 @@ Object.assign(Screens, {
   renderRegistro(year, month) {
     const liquidadas = Store.getLiquidadasEnMes(year, month);
     const totalMes = liquidadas.reduce((acc, c) => acc + Store.calcularTotales(c).total, 0);
+    const costoRealMes = liquidadas.reduce((acc, c) => acc + Store.calcularTotales(c).costoRealTotal, 0);
+    const utilidadMes = totalMes - costoRealMes;
     const totalPiezas = liquidadas.reduce((acc, c) => acc + Store.calcularTotales(c).piezas, 0);
 
     const fechaD = new Date(year, month, 1);
@@ -649,7 +657,19 @@ Object.assign(Screens, {
         <div class="card card-primary">
           <div class="totales-label">Total vendido y liquidado</div>
           <div class="totales-val grande" style="color: var(--primary-dark);">${Store.formatMoney(totalMes)}</div>
-          <div style="font-size: 0.85rem; color: var(--secondary); margin-top: 4px;">
+          
+          <div style="display: flex; justify-content: space-between; margin-top: 10px; padding-top: 8px; border-top: 1px dashed rgba(0,105,92,0.3);">
+            <div>
+              <div class="totales-label">Inversión (Costo Real)</div>
+              <div style="font-weight: 700; font-size: 1rem;">${Store.formatMoney(costoRealMes)}</div>
+            </div>
+            <div style="text-align: right;">
+              <div class="totales-label">Ganancia / Utilidad</div>
+              <div style="font-weight: 700; font-size: 1.05rem; color: var(--green);">${Store.formatMoney(utilidadMes)}</div>
+            </div>
+          </div>
+
+          <div style="font-size: 0.85rem; color: var(--secondary); margin-top: 8px;">
             ${liquidadas.length} cuenta(s) • ${totalPiezas} prenda(s)
           </div>
         </div>

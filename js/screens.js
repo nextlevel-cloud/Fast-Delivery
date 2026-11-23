@@ -474,9 +474,12 @@ Object.assign(Screens, {
                 <strong style="font-size: 0.95rem;">${a.cantidad} × ${a.producto}</strong>
                 <div style="font-size: 0.8rem; color: var(--text-muted);">${Store.formatMoney(a.precioUnitario)} c/u • ${Store.formatDate(a.fecha)}</div>
               </div>
-              <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="display: flex; align-items: center; gap: 6px;">
                 <strong style="font-size: 1rem;">${Store.formatMoney(a.cantidad * a.precioUnitario)}</strong>
-                ${!cuenta.fechaLiquidacion ? `<button class="icon-btn" style="color: var(--red);" onclick="window.Screens.eliminarArticulo('${cuenta.id}', '${a.id}')">✕</button>` : ''}
+                ${!cuenta.fechaLiquidacion ? `
+                  <button class="icon-btn" onclick="window.Screens.modalEditarArticulo('${cuenta.id}', '${a.id}')">✏️</button>
+                  <button class="icon-btn" style="color: var(--red);" onclick="window.Screens.eliminarArticulo('${cuenta.id}', '${a.id}')">✕</button>
+                ` : ''}
               </div>
             </div>
           `).join('')}
@@ -651,6 +654,60 @@ Object.assign(Screens, {
       if (e.name !== 'AbortError') {
         alert("No se pudieron compartir las fotos: " + e.message);
       }
+    }
+  },
+
+  modalEditarArticulo(cuentaId, articuloId) {
+    const cuenta = Store.getCuenta(cuentaId);
+    if (!cuenta) return;
+    const a = cuenta.articulos.find(x => x.id === articuloId);
+    if (!a) return;
+    const opciones = Store.data.productos.map(p => `<option value="${p}"></option>`).join('');
+    const modal = `
+      <div class="modal-backdrop">
+        <div class="modal-box">
+          <div class="modal-title">Editar prenda</div>
+          <div class="form-group">
+            <span class="form-label">Prenda / Producto</span>
+            <input type="text" id="dlgEditArtProd" list="listaPrendasEdit" class="input-box" value="${a.producto}">
+            <datalist id="listaPrendasEdit">${opciones}</datalist>
+          </div>
+          <div class="form-group">
+            <span class="form-label">Piezas</span>
+            <input type="number" id="dlgEditArtCant" class="input-box" min="1" value="${a.cantidad}">
+          </div>
+          <div class="form-group">
+            <span class="form-label">Precio real (lo que te costó - $)</span>
+            <input type="number" id="dlgEditArtReal" class="input-box" step="any" value="${a.precioReal > 0 ? a.precioReal : ''}">
+          </div>
+          <div class="form-group">
+            <span class="form-label">Costo por pieza (al cliente - $)</span>
+            <input type="number" id="dlgEditArtPrecio" class="input-box" step="any" value="${a.precioUnitario}">
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-outlined btn-sm" onclick="window.Screens.closeModal()">Cancelar</button>
+            <button class="btn btn-primary btn-sm" onclick="window.Screens.confirmEditarArticulo('${cuentaId}', '${articuloId}')">Guardar</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('modalContainer').innerHTML = modal;
+  },
+
+  confirmEditarArticulo(cuentaId, articuloId) {
+    const prod = document.getElementById('dlgEditArtProd').value.trim();
+    const cant = parseInt(document.getElementById('dlgEditArtCant').value) || 0;
+    const precioReal = parseFloat(document.getElementById('dlgEditArtReal').value) || 0;
+    const precio = parseFloat(document.getElementById('dlgEditArtPrecio').value) || 0;
+    if (!prod || cant <= 0 || precio <= 0) {
+      alert("Por favor verifica la prenda, la cantidad y el costo.");
+      return;
+    }
+    const liquidada = Store.updateArticulo(cuentaId, articuloId, prod, cant, precio, precioReal);
+    this.closeModal();
+    window.App.render();
+    if (liquidada) {
+      alert("🎉 ¡Cuenta liquidada y guardada en el registro del mes!");
     }
   },
 

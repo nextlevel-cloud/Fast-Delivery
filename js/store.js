@@ -188,6 +188,28 @@ export const Store = {
     return cuenta.id;
   },
 
+  updateArticulo(cuentaId, articuloId, producto, cantidad, precioUnitario, precioReal = 0) {
+    const cuenta = this.getCuenta(cuentaId);
+    if (!cuenta) return false;
+    const eraLiquidada = !!cuenta.fechaLiquidacion;
+    const prod = this.addProducto(producto);
+    cuenta.articulos = cuenta.articulos.map(a => {
+      if (a.id === articuloId) {
+        return {
+          ...a,
+          producto: prod,
+          cantidad: parseInt(cantidad),
+          precioUnitario: parseFloat(precioUnitario),
+          precioReal: parseFloat(precioReal) || 0
+        };
+      }
+      return a;
+    });
+    this.checkLiquidacion(cuenta);
+    this.save();
+    return !eraLiquidada && !!cuenta.fechaLiquidacion;
+  },
+
   deleteArticulo(cuentaId, articuloId) {
     const cuenta = this.getCuenta(cuentaId);
     if (!cuenta) return;

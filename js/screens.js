@@ -132,6 +132,9 @@ Object.assign(Screens, {
             </div>
             <div id="dropProductos" class="dropdown-list" style="display: none;"></div>
           </div>
+          <button class="btn btn-outlined" style="margin-top: 8px; height: 42px; font-size: 0.9rem;" onclick="window.Screens.modalNuevaPrendaEnPedido()">
+            ＋ Agregar prenda nueva al catálogo
+          </button>
         </div>
 
         <div>
@@ -302,6 +305,35 @@ Object.assign(Screens, {
 
   selectNuevoProducto(p) {
     const clean = Store.addProducto(p);
+    this.selectProducto(clean);
+  },
+
+  modalNuevaPrendaEnPedido() {
+    const actual = (document.getElementById('nuevoProducto')?.value || '').trim();
+    const modal = `
+      <div class="modal-backdrop">
+        <div class="modal-box">
+          <div class="modal-title">Nueva prenda</div>
+          <div class="form-group">
+            <span class="form-label">Nombre de la prenda</span>
+            <input type="text" id="dlgNomPrendaPedido" class="input-box" placeholder="Ej. Chamarra, gorra, bolso..." value="${actual}">
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-outlined btn-sm" onclick="window.Screens.closeModal()">Cancelar</button>
+            <button class="btn btn-primary btn-sm" onclick="window.Screens.confirmNuevaPrendaEnPedido()">Guardar</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('modalContainer').innerHTML = modal;
+    setTimeout(() => document.getElementById('dlgNomPrendaPedido')?.focus(), 50);
+  },
+
+  confirmNuevaPrendaEnPedido() {
+    const nom = (document.getElementById('dlgNomPrendaPedido')?.value || '').trim();
+    if (!nom) return;
+    const clean = Store.addProducto(nom);
+    this.closeModal();
     this.selectProducto(clean);
   },
 

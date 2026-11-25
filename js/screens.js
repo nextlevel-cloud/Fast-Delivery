@@ -267,18 +267,52 @@ Object.assign(Screens, {
     this.calcResumenNuevo();
   },
 
-  selectNuevoCliente(nombre) {
+  dlgTipoCliente: '',
+
+  toggleTipoCliente(val) {
+    this.dlgTipoCliente = this.dlgTipoCliente === val ? '' : val;
+    const btnM = document.getElementById('btnTipoM');
+    const btnB = document.getElementById('btnTipoB');
+    if (btnM) {
+      btnM.className = this.dlgTipoCliente === 'M' ? 'btn btn-primary' : 'btn btn-outlined';
+      btnM.style.height = '42px';
+      btnM.textContent = this.dlgTipoCliente === 'M' ? '✓ M • Mayoreo' : 'M • Mayoreo';
+    }
+    if (btnB) {
+      btnB.className = this.dlgTipoCliente === 'B' ? 'btn btn-primary' : 'btn btn-outlined';
+      btnB.style.height = '42px';
+      btnB.textContent = this.dlgTipoCliente === 'B' ? '✓ B • Boutique' : 'B • Boutique';
+    }
+  },
+
+  selectNuevoCliente(nombre, desdeCatalogo = false) {
+    this.dlgTipoCliente = '';
+    this.nuevoClienteDesdeCatalogo = desdeCatalogo;
     const modal = `
       <div class="modal-backdrop">
         <div class="modal-box">
           <div class="modal-title">Nuevo Cliente</div>
           <div class="form-group">
-            <span class="form-label">Nombre</span>
+            <span class="form-label">Nombre del cliente</span>
             <input type="text" id="dlgNomCli" class="input-box" value="${nombre}">
           </div>
           <div class="form-group">
-            <span class="form-label">WhatsApp (10 dígitos)</span>
+            <span class="form-label">Número (WhatsApp 10 dígitos)</span>
             <input type="tel" id="dlgTelCli" class="input-box" placeholder="Ej. 5512345678">
+          </div>
+          <div class="form-group">
+            <span class="form-label">Localidad</span>
+            <input type="text" id="dlgLocCli" class="input-box" placeholder="Ej. Puebla, CDMX...">
+          </div>
+          <div class="form-group">
+            <span class="form-label">Tipo de cliente (uso interno)</span>
+            <div style="display: flex; gap: 8px;">
+              <button type="button" id="btnTipoM" class="btn btn-outlined" style="flex: 1; height: 42px; font-size: 0.9rem;" onclick="window.Screens.toggleTipoCliente('M')">M • Mayoreo</button>
+              <button type="button" id="btnTipoB" class="btn btn-outlined" style="flex: 1; height: 42px; font-size: 0.9rem;" onclick="window.Screens.toggleTipoCliente('B')">B • Boutique</button>
+            </div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px;">
+              Solo para control interno; no aparece en el ticket de WhatsApp.
+            </div>
           </div>
           <div class="modal-footer">
             <button class="btn btn-outlined btn-sm" onclick="window.Screens.closeModal()">Cancelar</button>
@@ -293,10 +327,15 @@ Object.assign(Screens, {
   confirmNuevoCliente() {
     const nom = document.getElementById('dlgNomCli').value.trim();
     const tel = document.getElementById('dlgTelCli').value.trim();
+    const loc = (document.getElementById('dlgLocCli')?.value || '').trim();
     if (!nom) return;
-    const nuevo = Store.addCliente(nom, tel);
+    const nuevo = Store.addCliente(nom, tel, loc, this.dlgTipoCliente);
     this.closeModal();
-    this.selectCliente(nuevo.id);
+    if (this.nuevoClienteDesdeCatalogo) {
+      window.App.render();
+    } else {
+      this.selectCliente(nuevo.id);
+    }
   },
 
   updateInfoCliente() {
@@ -496,7 +535,7 @@ Object.assign(Screens, {
             <div>
               <h2 style="font-size: 1.25rem;">${cliente.nombre}</h2>
               <div style="font-size: 0.85rem; color: var(--text-muted);">
-                ${cliente.telefono ? 'WhatsApp: ' + cliente.telefono : 'Sin WhatsApp registrado'}
+                ${cliente.telefono ? 'WhatsApp: ' + cliente.telefono : 'Sin WhatsApp registrado'}${cliente.localidad ? ' • ' + cliente.localidad : ''}${cliente.tipo === 'M' ? ' • M (Mayoreo)' : cliente.tipo === 'B' ? ' • B (Boutique)' : ''}
               </div>
             </div>
             <button class="btn btn-outlined btn-sm" onclick="window.Screens.modalEditarCliente('${cliente.id}')">Editar</button>
@@ -840,17 +879,29 @@ Object.assign(Screens, {
 
   modalEditarCliente(clienteId) {
     const cl = Store.getCliente(clienteId);
+    this.dlgTipoCliente = cl.tipo || '';
     const modal = `
       <div class="modal-backdrop">
         <div class="modal-box">
           <div class="modal-title">Editar Cliente</div>
           <div class="form-group">
-            <span class="form-label">Nombre</span>
+            <span class="form-label">Nombre del cliente</span>
             <input type="text" id="dlgEditNom" class="input-box" value="${cl.nombre}">
           </div>
           <div class="form-group">
-            <span class="form-label">WhatsApp (10 dígitos)</span>
-            <input type="tel" id="dlgEditTel" class="input-box" value="${cl.telefono}">
+            <span class="form-label">Número (WhatsApp 10 dígitos)</span>
+            <input type="tel" id="dlgEditTel" class="input-box" value="${cl.telefono || ''}">
+          </div>
+          <div class="form-group">
+            <span class="form-label">Localidad</span>
+            <input type="text" id="dlgEditLoc" class="input-box" placeholder="Ej. Puebla, CDMX..." value="${cl.localidad || ''}">
+          </div>
+          <div class="form-group">
+            <span class="form-label">Tipo de cliente (uso interno)</span>
+            <div style="display: flex; gap: 8px;">
+              <button type="button" id="btnTipoM" class="btn ${this.dlgTipoCliente === 'M' ? 'btn-primary' : 'btn-outlined'}" style="flex: 1; height: 42px; font-size: 0.9rem;" onclick="window.Screens.toggleTipoCliente('M')">${this.dlgTipoCliente === 'M' ? '✓ ' : ''}M • Mayoreo</button>
+              <button type="button" id="btnTipoB" class="btn ${this.dlgTipoCliente === 'B' ? 'btn-primary' : 'btn-outlined'}" style="flex: 1; height: 42px; font-size: 0.9rem;" onclick="window.Screens.toggleTipoCliente('B')">${this.dlgTipoCliente === 'B' ? '✓ ' : ''}B • Boutique</button>
+            </div>
           </div>
           <div class="modal-footer">
             <button class="btn btn-outlined btn-sm" onclick="window.Screens.closeModal()">Cancelar</button>
@@ -865,8 +916,9 @@ Object.assign(Screens, {
   confirmEditarCliente(clienteId) {
     const nom = document.getElementById('dlgEditNom').value.trim();
     const tel = document.getElementById('dlgEditTel').value.trim();
+    const loc = (document.getElementById('dlgEditLoc')?.value || '').trim();
     if (!nom) return;
-    Store.updateCliente(clienteId, nom, tel);
+    Store.updateCliente(clienteId, nom, tel, loc, this.dlgTipoCliente);
     this.closeModal();
     window.App.render();
   }
@@ -1121,8 +1173,8 @@ Object.assign(Screens, {
           return `
             <div class="card" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
               <div onclick="window.App.openNewOrder('${cl.id}')" style="cursor: pointer; flex: 1;">
-                <strong>${cl.nombre}</strong>
-                <div style="font-size: 0.8rem; color: var(--text-muted);">${cl.telefono || 'Sin WhatsApp'}</div>
+                <strong>${cl.nombre}${cl.tipo === 'M' ? ' [M • Mayoreo]' : cl.tipo === 'B' ? ' [B • Boutique]' : ''}</strong>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">${cl.telefono || 'Sin WhatsApp'}${cl.localidad ? ' • ' + cl.localidad : ''}</div>
                 ${cuenta ? `<div style="color: var(--red); font-size: 0.8rem; font-weight: bold;">Debe ${Store.formatMoney(Store.calcularTotales(cuenta).resta)}</div>` : ''}
               </div>
               <div style="display: flex; gap: 4px;">
@@ -1137,7 +1189,7 @@ Object.assign(Screens, {
   },
 
   modalNuevoClienteCat() {
-    this.selectNuevoCliente('');
+    this.selectNuevoCliente('', true);
   },
 
   eliminarClienteCat(id) {

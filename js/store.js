@@ -73,28 +73,37 @@ export const Store = {
     return this.data.clientes.find(c => this.normalize(c.nombre) === n);
   },
 
-  addCliente(nombre, telefono = '') {
+  addCliente(nombre, telefono = '', localidad = '', tipo = '') {
     const limpio = (nombre || '').trim();
     const exist = this.getClientePorNombre(limpio);
     if (exist) {
-      if (telefono && !exist.telefono) {
-        exist.telefono = telefono.trim();
-        this.save();
-      }
+      let cambio = false;
+      if (telefono && !exist.telefono) { exist.telefono = telefono.trim(); cambio = true; }
+      if (localidad && !exist.localidad) { exist.localidad = localidad.trim(); cambio = true; }
+      if (tipo && !exist.tipo) { exist.tipo = tipo.trim(); cambio = true; }
+      if (cambio) this.save();
       return exist;
     }
-    const nuevo = { id: this.uuid(), nombre: limpio, telefono: (telefono || '').trim() };
+    const nuevo = {
+      id: this.uuid(),
+      nombre: limpio,
+      telefono: (telefono || '').trim(),
+      localidad: (localidad || '').trim(),
+      tipo: (tipo || '').trim()
+    };
     this.data.clientes.push(nuevo);
     this.data.clientes.sort((a,b) => a.nombre.localeCompare(b.nombre));
     this.save();
     return nuevo;
   },
 
-  updateCliente(id, nombre, telefono) {
+  updateCliente(id, nombre, telefono, localidad = '', tipo = '') {
     const cl = this.getCliente(id);
     if (cl) {
       cl.nombre = (nombre || '').trim();
       cl.telefono = (telefono || '').trim();
+      cl.localidad = (localidad || '').trim();
+      cl.tipo = (tipo || '').trim();
       this.data.clientes.sort((a,b) => a.nombre.localeCompare(b.nombre));
       this.save();
     }

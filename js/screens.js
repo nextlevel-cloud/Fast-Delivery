@@ -1,8 +1,21 @@
 ﻿import { Store } from './store.js';
 
+const ESTADOS_PEDIDO = [
+  { codigo: 'comprando', etiqueta: 'Pedido comprando', icono: '🛍️', badge: 'badge-orange' },
+  { codigo: 'en_camino', etiqueta: 'Pedido en camino', icono: '🚚', badge: 'badge-blue' },
+  { codigo: 'entregado', etiqueta: 'Pedido entregado', icono: '✅', badge: 'badge-green' }
+];
+
 export const Screens = {
   selectedClienteId: null,
   ultimaCuentaId: null,
+  filtroEstado: null,
+  filtroBusqueda: '',
+
+  getEstadoInfo(cuenta) {
+    const code = cuenta.estadoPedido || 'comprando';
+    return ESTADOS_PEDIDO.find(e => e.codigo === code) || ESTADOS_PEDIDO[0];
+  },
 
   renderCuentas() {
     const activas = Store.getCuentasActivas();
@@ -21,6 +34,23 @@ export const Screens = {
       `;
     }
 
+    const chipsHtml = `
+      <div class="chips-row">
+        <button class="chip-btn ${this.filtroEstado === null ? 'active' : ''}" onclick="window.Screens.setFiltroEstado(null)">
+          ${this.filtroEstado === null ? '✓ ' : ''}Todos (${activas.length})
+        </button>
+        ${ESTADOS_PEDIDO.map(est => {
+          const count = activas.filter(c => (c.estadoPedido || 'comprando') === est.codigo).length;
+          const active = this.filtroEstado === est.codigo;
+          return `
+            <button class="chip-btn ${active ? 'active' : ''}" onclick="window.Screens.setFiltroEstado('${est.codigo}')">
+              ${active ? '✓ ' : ''}${est.etiqueta} (${count})
+            </button>
+          `;
+        }).join('')}
+      </div>
+    `;
+
     html += `
       <div class="card card-primary">
         <div class="totales-label">Por cobrar</div>
@@ -33,31 +63,40 @@ export const Screens = {
       <div class="form-group search-container">
         <div class="search-input-wrap">
           <span class="search-icon">🔍</span>
-          <input type="text" id="inputBuscarCuenta" class="input-box" placeholder="Buscar cliente..." oninput="window.Screens.filterCuentas(this.value)">
+          <input type="text" id="inputBuscarCuenta" class="input-box" placeholder="Buscar cliente..." value="${this.filtroBusqueda}" oninput="window.Screens.filterCuentas(this.value)">
           <div class="search-actions">
             <button class="icon-btn" onclick="document.getElementById('inputBuscarCuenta').value=''; window.Screens.filterCuentas('')">✕</button>
           </div>
         </div>
       </div>
 
+      ${chipsHtml}
+
       <div id="cuentasList">
-        ${this.renderCuentasList(activas)}
+        ${this.renderCuentasList(activas, this.filtroBusqueda)}
       </div>
     `;
     return html;
+  },
+
+  setFiltroEstado(estado) {
+    this.filtroEstado = this.filtroEstado === estado ? null : estado;
+    window.App.render();
   },
 
   renderCuentasList(activas, filtro = '') {
     const norm = Store.normalize(filtro);
     const filtradas = activas.filter(c => {
       const cl = Store.getCliente(c.clienteId);
-      return cl && (!norm || Store.normalize(cl.nombre).includes(norm));
+      const matchNombre = cl && (!norm || Store.normalize(cl.nombre).includes(norm));
+      const matchEstado = !this.filtroEstado || (c.estadoPedido || 'comprando') === this.filtroEstado;
+      return matchNombre && matchEstado;
     });
 
     if (filtradas.length === 0) {
       return `
         <div style="text-align: center; padding: 40px 20px; color: var(--text-muted);">
-          ${activas.length === 0 ? 'No hay cuentas pendientes.<br>Toca <strong>“＋ Nuevo pedido”</strong> para empezar.' : 'Ningún cliente coincide con la búsqueda.'}
+          ${activas.length === 0 ? 'No hay cuentas pendientes.<br>Toca <strong>“＋ Nuevo pedido”</strong> para empezar.' : 'Ningún pedido coincide con el filtro.'}
         </div>
       `;
     }
@@ -65,6 +104,7 @@ export const Screens = {
     return filtradas.map(cuenta => {
       const cliente = Store.getCliente(cuenta.clienteId);
       const t = Store.calcularTotales(cuenta);
+      const est = this.getEstadoInfo(cuenta);
       return `
         <div class="card clickable" onclick="window.App.openDetalle('${cuenta.id}')">
           <div style="display: flex; justify-content: space-between; align-items: flex-start;">
@@ -76,7 +116,10 @@ export const Screens = {
             </div>
             <button class="btn btn-outlined btn-sm" onclick="event.stopPropagation(); window.App.openNewOrder('${cliente.id}')">＋ Prenda</button>
           </div>
-          <div style="margin-top: 12px;">
+          <div style="margin-top: 8px;">
+            <span class="badge ${est.badge}">${est.icono} ${est.etiqueta}</span>
+          </div>
+          <div style="margin-top: 10px;">
             <div class="totales-row">
               <div class="totales-col"><span class="totales-label">Total</span><span class="totales-val">${Store.formatMoney(t.total)}</span></div>
               <div class="totales-col"><span class="totales-label">Abonado</span><span class="totales-val" style="color: var(--green);">${Store.formatMoney(t.abonado)}</span></div>
@@ -92,6 +135,7 @@ export const Screens = {
   },
 
   filterCuentas(val) {
+    this.filtroBusqueda = val;
     const activas = Store.getCuentasActivas();
     document.getElementById('cuentasList').innerHTML = this.renderCuentasList(activas, val);
   }
@@ -465,6 +509,20 @@ Object.assign(Screens, {
             }
           </div>
 
+          <div style="margin-top: 10px;">
+            <div class="totales-label" style="margin-bottom: 6px;">Estado del pedido</div>
+            <div class="chips-row" style="margin-bottom: 4px;">
+              ${ESTADOS_PEDIDO.map(est => {
+                const activo = (cuenta.estadoPedido || 'comprando') === est.codigo;
+                return `
+                  <button class="chip-btn ${activo ? 'active' : ''}" onclick="window.Screens.cambiarEstadoPedido('${cuenta.id}', '${est.codigo}')">
+                    ${activo ? '✓ ' : ''}${est.icono} ${est.etiqueta}
+                  </button>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
           <div class="totales-row" style="margin-top: 14px;">
             <div class="totales-col"><span class="totales-label">Total</span><span class="totales-val grande">${Store.formatMoney(t.total)}</span></div>
             <div class="totales-col"><span class="totales-label">Abonado</span><span class="totales-val grande" style="color: var(--green);">${Store.formatMoney(t.abonado)}</span></div>
@@ -756,6 +814,11 @@ Object.assign(Screens, {
   eliminarAbono(cuentaId, abonoId) {
     if (!confirm("¿Deseas eliminar este abono?")) return;
     Store.deleteAbono(cuentaId, abonoId);
+    window.App.render();
+  },
+
+  cambiarEstadoPedido(cuentaId, estado) {
+    Store.setEstadoPedido(cuentaId, estado);
     window.App.render();
   },
 

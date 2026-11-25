@@ -362,6 +362,41 @@ nav.bottom-nav {
 
 .badge-green { background: var(--green-light); color: var(--green); }
 .badge-red { background: var(--red-light); color: var(--red); }
+.badge-orange { background: #FFF3E0; color: #EF6C00; }
+.badge-blue { background: #E3F2FD; color: #1565C0; }
+
+.chips-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-bottom: 12px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chips-row::-webkit-scrollbar {
+  display: none;
+}
+
+.chip-btn {
+  flex-shrink: 0;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 50px;
+  padding: 7px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chip-btn.active {
+  background: var(--primary-container);
+  border-color: var(--primary);
+  color: var(--primary-dark);
+  font-weight: 700;
+}
 
 .modal-backdrop {
   position: fixed;

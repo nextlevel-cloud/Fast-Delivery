@@ -174,7 +174,7 @@ export const Store = {
     const art = { id: this.uuid(), producto: prod, cantidad: parseInt(cantidad), precioUnitario: parseFloat(precioUnitario), precioReal: parseFloat(precioReal) || 0, fecha: ahora };
     let cuenta = this.getCuentaActiva(clienteId);
     if (!cuenta) {
-      cuenta = { id: this.uuid(), clienteId, articulos: [art], abonos: [], fechaCreacion: ahora, fechaLiquidacion: null };
+      cuenta = { id: this.uuid(), clienteId, articulos: [art], abonos: [], fechaCreacion: ahora, fechaLiquidacion: null, estadoPedido: 'comprando' };
       this.data.cuentas.push(cuenta);
     } else {
       cuenta.articulos.push(art);
@@ -237,6 +237,13 @@ export const Store = {
     if (!cuenta) return;
     cuenta.abonos = cuenta.abonos.filter(ab => ab.id !== abonoId);
     this.checkLiquidacion(cuenta);
+    this.save();
+  },
+
+  setEstadoPedido(cuentaId, estado) {
+    const cuenta = this.getCuenta(cuentaId);
+    if (!cuenta) return;
+    cuenta.estadoPedido = estado;
     this.save();
   },
 

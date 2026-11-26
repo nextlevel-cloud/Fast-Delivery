@@ -1,5 +1,7 @@
 ﻿const PRODUCTOS_INICIALES = ["Playeras", "Camisas", "Cinturón", "Zapatos", "Zapatillas", "Perfumes"];
 const DIAS_RECORDATORIO = 7;
+const SUPABASE_URL = 'https://dtkucbaomomsvnjxatfc.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_iYLTm8CdcQKj8qgPyuk4gg_bPvE7Lcm';
 
 export const Store = {
   data: {
@@ -10,7 +12,18 @@ export const Store = {
     ultimoAutoRespaldo: null
   },
 
+  cloud: {
+    clave: '',
+    pin: '',
+    autoActivo: false,
+    ultimoNube: null,
+    estado: ''
+  },
+
+  _cloudTimer: null,
+
   init() {
+    this.loadCloudConfig();
     const local = localStorage.getItem('pedidos_data');
     if (local) {
       try {
@@ -20,12 +33,100 @@ export const Store = {
         this.data.cuentas = parsed.cuentas || [];
         this.data.ultimoRespaldo = parsed.ultimoRespaldo || null;
         this.data.ultimoAutoRespaldo = parsed.ultimoAutoRespaldo || null;
-        if (this.asignarFoliosFaltantes()) this.save();
+        if (this.asignarFoliosFaltantes()) this.save(false);
       } catch(e) {
         console.error("Error cargando datos:", e);
       }
     } else {
-      this.save();
+      this.save(false);
+    }
+  },
+
+  loadCloudConfig() {
+    try {
+      const raw = localStorage.getItem('pedidos_cloud_cfg');
+      if (raw) {
+        const c = JSON.parse(raw);
+        this.cloud.clave = c.clave || '';
+        this.cloud.pin = c.pin || '';
+        this.cloud.autoActivo = !!c.autoActivo;
+        this.cloud.ultimoNube = c.ultimoNube || null;
+      }
+    } catch (_) {}
+  },
+
+  saveCloudConfig(clave, pin, autoActivo) {
+    this.cloud.clave = (clave || '').trim().toLowerCase();
+    this.cloud.pin = (pin || '').trim();
+    this.cloud.autoActivo = !!autoActivo && this.cloud.clave.length >= 3 && this.cloud.pin.length >= 4;
+    localStorage.setItem('pedidos_cloud_cfg', JSON.stringify({
+      clave: this.cloud.clave,
+      pin: this.cloud.pin,
+      autoActivo: this.cloud.autoActivo,
+      ultimoNube: this.cloud.ultimoNube
+    }));
+  },
+
+  async _cloudRpc(fnName, body) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+    return data;
+  },
+
+  async subirRespaldoNube() {
+    if (this.cloud.clave.length < 3 || this.cloud.pin.length < 4) {
+      return { ok: false, message: 'Configura tu clave (mín. 3 letras) y PIN (mín. 4 dígitos).' };
+    }
+    this.cloud.estado = 'Sincronizando...';
+    try {
+      const payload = {
+        app: 'Pedidos',
+        version: 1,
+        fechaRespaldo: Date.now(),
+        clientes: this.data.clientes,
+        productos: this.data.productos,
+        cuentas: this.data.cuentas
+      };
+      const res = await this._cloudRpc('save_tickets_backup', {
+        p_backup_key: this.cloud.clave,
+        p_pin: this.cloud.pin,
+        p_payload: payload
+      });
+      if (res.ok) {
+        this.cloud.ultimoNube = Date.now();
+        this.cloud.estado = 'Sincronizado';
+        this.saveCloudConfig(this.cloud.clave, this.cloud.pin, this.cloud.autoActivo);
+        return { ok: true, message: 'Respaldo subido a la nube ✔' };
+      }
+      this.cloud.estado = 'Error: ' + (res.message || 'No se pudo subir');
+      return { ok: false, message: res.message || 'No se pudo subir el respaldo' };
+    } catch (e) {
+      this.cloud.estado = 'Error: ' + e.message;
+      return { ok: false, message: e.message };
+    }
+  },
+
+  async descargarRespaldoNube(clave, pin) {
+    try {
+      const res = await this._cloudRpc('load_tickets_backup', {
+        p_backup_key: (clave || '').trim().toLowerCase(),
+        p_pin: (pin || '').trim()
+      });
+      if (res.ok && res.payload) {
+        return { ok: true, payload: res.payload };
+      }
+      return { ok: false, message: res.message || 'No se encontró respaldo en la nube' };
+    } catch (e) {
+      return { ok: false, message: e.message };
     }
   },
 
@@ -51,7 +152,7 @@ export const Store = {
     return '#' + String(cliente.folio).padStart(3, '0');
   },
 
-  save() {
+  save(syncCloud = true) {
     const ahora = Date.now();
     this.data.ultimoAutoRespaldo = ahora;
     const payload = JSON.stringify(this.data);
@@ -67,6 +168,13 @@ export const Store = {
       });
       localStorage.setItem('pedidos_auto_backup_latest', autoSnapshot);
     } catch (_) {}
+
+    if (syncCloud && this.cloud.autoActivo && this.cloud.clave.length >= 3 && this.cloud.pin.length >= 4) {
+      clearTimeout(this._cloudTimer);
+      this._cloudTimer = setTimeout(() => {
+        this.subirRespaldoNube().catch(() => {});
+      }, 1500);
+    }
   },
 
   getAutoRespaldo() {

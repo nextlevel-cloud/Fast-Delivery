@@ -1370,9 +1370,38 @@ Object.assign(Screens, {
     const autoCopy = Store.getAutoRespaldo();
     const diasSinRespaldo = ultimo ? Math.floor((Date.now() - ultimo) / 86400000) : 999;
     const atrasado = !ultimo || diasSinRespaldo >= 7;
+    const cl = Store.cloud;
 
     return `
       <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div class="card card-primary">
+          <strong style="font-size: 1rem; display: block; margin-bottom: 6px;">☁️ Respaldo automático en la nube (Supabase)</strong>
+          <p style="font-size: 0.8rem; color: var(--secondary); margin-bottom: 10px;">
+            Usa la misma clave y PIN en tu Android, iPhone o Mac para respaldar automáticamente y restaurar en cualquier dispositivo.
+          </p>
+          <div class="form-group">
+            <span class="form-label">Clave de tu cuenta (ej. mitienda)</span>
+            <input type="text" id="inputClaveNube" class="input-box" placeholder="Ej. mitienda" value="${cl.clave}">
+          </div>
+          <div class="form-group">
+            <span class="form-label">PIN de seguridad (mín. 4 caracteres)</span>
+            <input type="password" id="inputPinNube" class="input-box" placeholder="Ej. 1234" value="${cl.pin}">
+          </div>
+          <label style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; font-size: 0.85rem; font-weight: 600;">
+            <span>Respaldar automáticamente en cada cambio</span>
+            <input type="checkbox" id="chkAutoNube" ${cl.autoActivo ? 'checked' : ''} onchange="window.Screens.toggleAutoNube()" style="width: 22px; height: 22px;">
+          </label>
+          ${cl.ultimoNube || cl.estado ? `
+            <div style="font-size: 0.8rem; font-weight: 600; margin-bottom: 10px; color: ${cl.estado.startsWith('Error') ? 'var(--red)' : 'var(--green)'};">
+              ${cl.ultimoNube ? 'Último en la nube: ' + Store.formatDateTime(cl.ultimoNube) : ''}${cl.ultimoNube && cl.estado ? ' • ' : ''}${cl.estado}
+            </div>
+          ` : ''}
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-primary" style="flex: 1; height: 44px; font-size: 0.9rem;" onclick="window.Screens.subirNubeAhora()">☁️ Subir ahora</button>
+            <button class="btn btn-outlined" style="flex: 1; height: 44px; font-size: 0.9rem;" onclick="window.Screens.restaurarDesdeNube()">⬇️ Restaurar</button>
+          </div>
+        </div>
+
         <div class="card" style="background: var(--green-light); border-color: #C8E6C9;">
           <div class="totales-label" style="color: var(--green);">Respaldo automático activo</div>
           <div class="totales-val" style="color: var(--green); font-size: 1rem; margin-top: 4px;">
@@ -1484,6 +1513,72 @@ Object.assign(Screens, {
       }
     };
     reader.readAsText(file);
+  },
+
+  async toggleAutoNube() {
+    const clave = (document.getElementById('inputClaveNube')?.value || '').trim();
+    const pin = (document.getElementById('inputPinNube')?.value || '').trim();
+    const activo = !!document.getElementById('chkAutoNube')?.checked;
+    if (activo && (clave.length < 3 || pin.length < 4)) {
+      alert('Escribe primero una clave (mín. 3 letras) y un PIN (mín. 4 caracteres).');
+      document.getElementById('chkAutoNube').checked = false;
+      return;
+    }
+    Store.saveCloudConfig(clave, pin, activo);
+    if (activo) {
+      const res = await Store.subirRespaldoNube();
+      alert(res.message);
+      window.App.render();
+    }
+  },
+
+  async subirNubeAhora() {
+    const clave = (document.getElementById('inputClaveNube')?.value || '').trim();
+    const pin = (document.getElementById('inputPinNube')?.value || '').trim();
+    const activo = !!document.getElementById('chkAutoNube')?.checked;
+    Store.saveCloudConfig(clave, pin, activo);
+    const res = await Store.subirRespaldoNube();
+    alert(res.message);
+    window.App.render();
+  },
+
+  async restaurarDesdeNube() {
+    const clave = (document.getElementById('inputClaveNube')?.value || '').trim();
+    const pin = (document.getElementById('inputPinNube')?.value || '').trim();
+    const activo = !!document.getElementById('chkAutoNube')?.checked;
+    if (clave.length < 3 || pin.length < 4) {
+      alert('Ingresa tu clave y PIN para descargar el respaldo de la nube.');
+      return;
+    }
+    Store.saveCloudConfig(clave, pin, activo);
+    const res = await Store.descargarRespaldoNube(clave, pin);
+    if (!res.ok) {
+      alert(res.message);
+      return;
+    }
+    const parsed = res.payload;
+    window.tempRespaldoParsed = parsed;
+    const modal = `
+      <div class="modal-backdrop">
+        <div class="modal-box">
+          <div class="modal-title">¿Restaurar desde la nube?</div>
+          <div style="font-size: 0.85rem; line-height: 1.5; margin-bottom: 12px;">
+            ${parsed.fechaRespaldo ? '<strong>Guardado:</strong> ' + Store.formatDateTime(parsed.fechaRespaldo) + '<br>' : ''}
+            • ${(parsed.clientes || []).length} cliente(s)<br>
+            • ${(parsed.productos || []).length} prenda(s)<br>
+            • ${(parsed.cuentas || []).length} cuenta(s)
+          </div>
+          <div style="color: var(--red); font-size: 0.85rem; font-weight: bold; margin-bottom: 16px;">
+            ⚠️ La información actual será reemplazada por la de la nube.
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-outlined btn-sm" onclick="window.Screens.closeModal()">Cancelar</button>
+            <button class="btn btn-danger btn-sm" onclick="window.Screens.confirmRestaurar()">Restaurar</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('modalContainer').innerHTML = modal;
   },
 
   restaurarAutoRespaldo() {

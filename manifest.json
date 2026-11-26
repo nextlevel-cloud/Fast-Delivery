@@ -1,6 +1,6 @@
 ﻿{
-  "name": "Control de Pedidos",
-  "short_name": "Pedidos",
+  "name": "Tickets",
+  "short_name": "Tickets",
   "description": "App para control de pedidos, abonos, clientes y prendas",
   "start_url": "./index.html",
   "display": "standalone",

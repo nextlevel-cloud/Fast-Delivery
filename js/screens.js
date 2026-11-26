@@ -562,6 +562,22 @@ Object.assign(Screens, {
             </div>
           </div>
 
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border);">
+            <div>
+              <div class="totales-label">Financiamiento %</div>
+              <div style="font-size: 0.9rem; font-weight: ${t.financiamientoPct > 0 ? '700' : '400'};">
+                ${t.financiamientoPct > 0
+                  ? `${t.financiamientoPct}% (+${Store.formatMoney(t.montoFinanciamiento)} sobre ${Store.formatMoney(t.subtotalArticulos)})`
+                  : '0% (sin financiamiento)'}
+              </div>
+            </div>
+            ${!cuenta.fechaLiquidacion ? `
+              <button class="btn btn-outlined btn-sm" onclick="window.Screens.modalFinanciamiento('${cuenta.id}')">
+                ${t.financiamientoPct > 0 ? 'Cambiar %' : 'Aplicar %'}
+              </button>
+            ` : ''}
+          </div>
+
           <div class="totales-row" style="margin-top: 14px;">
             <div class="totales-col"><span class="totales-label">Total</span><span class="totales-val grande">${Store.formatMoney(t.total)}</span></div>
             <div class="totales-col"><span class="totales-label">Abonado</span><span class="totales-val grande" style="color: var(--green);">${Store.formatMoney(t.abonado)}</span></div>
@@ -704,6 +720,10 @@ Object.assign(Screens, {
       msg += `\n`;
     }
 
+    if (t.financiamientoPct > 0) {
+      msg += `Subtotal prendas: *${cleanMoney(t.subtotalArticulos)}*\n`;
+      msg += `Financiamiento (${t.financiamientoPct}%): *${cleanMoney(t.montoFinanciamiento)}*\n`;
+    }
     msg += `Total: *${cleanMoney(t.total)}*\n`;
     msg += `Abonado: *${cleanMoney(t.abonado)}*\n`;
     if (t.saldoAFavor > 0.005) {
@@ -859,6 +879,56 @@ Object.assign(Screens, {
   cambiarEstadoPedido(cuentaId, estado) {
     Store.setEstadoPedido(cuentaId, estado);
     window.App.render();
+  },
+
+  modalFinanciamiento(cuentaId) {
+    const cuenta = Store.getCuenta(cuentaId);
+    if (!cuenta) return;
+    const t = Store.calcularTotales(cuenta);
+    const modal = `
+      <div class="modal-backdrop">
+        <div class="modal-box">
+          <div class="modal-title">Financiamiento %</div>
+          <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px;">
+            Subtotal prendas: <strong>${Store.formatMoney(t.subtotalArticulos)}</strong>
+          </div>
+          <div class="form-group">
+            <span class="form-label">Porcentaje de financiamiento (%)</span>
+            <input type="number" id="dlgFinanciamientoPct" class="input-box" min="0" step="any" placeholder="Ej. 10" value="${t.financiamientoPct > 0 ? t.financiamientoPct : ''}" oninput="window.Screens.previewFinanciamiento(${t.subtotalArticulos})">
+          </div>
+          <div id="dlgFinanciamientoPreview" style="font-size: 0.85rem; font-weight: 700; margin-bottom: 8px;">
+            Cargo: ${Store.formatMoney(t.montoFinanciamiento)} • Nuevo total: ${Store.formatMoney(t.total)}
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-outlined btn-sm" onclick="window.Screens.closeModal()">Cancelar</button>
+            <button class="btn btn-primary btn-sm" onclick="window.Screens.confirmFinanciamiento('${cuentaId}')">Guardar</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('modalContainer').innerHTML = modal;
+  },
+
+  previewFinanciamiento(subtotal) {
+    const pct = Math.max(0, parseFloat(document.getElementById('dlgFinanciamientoPct')?.value) || 0);
+    const cargo = subtotal * (pct / 100);
+    const el = document.getElementById('dlgFinanciamientoPreview');
+    if (el) el.textContent = `Cargo: ${Store.formatMoney(cargo)} • Nuevo total: ${Store.formatMoney(subtotal + cargo)}`;
+  },
+
+  confirmFinanciamiento(cuentaId) {
+    const val = document.getElementById('dlgFinanciamientoPct').value.trim();
+    const pct = val === '' ? 0 : parseFloat(val);
+    if (isNaN(pct) || pct < 0) {
+      alert("Ingresa un porcentaje válido (0 o mayor).");
+      return;
+    }
+    const liquidada = Store.setFinanciamiento(cuentaId, pct);
+    this.closeModal();
+    window.App.render();
+    if (liquidada) {
+      alert("🎉 ¡Cuenta liquidada y guardada en el registro del mes!");
+    }
   },
 
   reabrirCuenta(cuentaId) {
@@ -1066,11 +1136,12 @@ Object.assign(Screens, {
       totalPzas += t.piezas;
 
       const detalleArts = c.articulos.map(a => `${a.cantidad}x ${a.producto} (${Store.formatMoney(a.precioUnitario)})`).join('\n');
+      const notaFinanciamiento = t.financiamientoPct > 0 ? `\nFinanciamiento (${t.financiamientoPct}%): ${Store.formatMoney(t.montoFinanciamiento)}` : '';
       const notaFavor = t.saldoAFavor > 0.005 ? `\n[Saldo a favor cliente: ${Store.formatMoney(t.saldoAFavor)}]` : '';
 
       rows.push([
         Store.formatDate(c.fechaLiquidacion),
-        (cl ? cl.nombre : '(eliminado)') + '\n' + detalleArts + notaFavor,
+        (cl ? cl.nombre : '(eliminado)') + '\n' + detalleArts + notaFinanciamiento + notaFavor,
         t.piezas,
         c.abonos.length,
         Store.formatMoney(t.total)

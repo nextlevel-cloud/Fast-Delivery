@@ -155,7 +155,10 @@ export const Store = {
   },
 
   calcularTotales(cuenta) {
-    const total = (cuenta.articulos || []).reduce((acc, a) => acc + (a.cantidad * a.precioUnitario), 0);
+    const subtotalArticulos = (cuenta.articulos || []).reduce((acc, a) => acc + (a.cantidad * a.precioUnitario), 0);
+    const financiamientoPct = Math.max(0, parseFloat(cuenta.financiamientoPct) || 0);
+    const montoFinanciamiento = subtotalArticulos * (financiamientoPct / 100);
+    const total = subtotalArticulos + montoFinanciamiento;
     const costoRealTotal = (cuenta.articulos || []).reduce((acc, a) => acc + (a.cantidad * (a.precioReal || 0)), 0);
     const utilidad = total - costoRealTotal;
     const abonado = (cuenta.abonos || []).reduce((acc, ab) => acc + ab.monto, 0);
@@ -164,7 +167,7 @@ export const Store = {
     const piezas = (cuenta.articulos || []).reduce((acc, a) => acc + a.cantidad, 0);
     const progreso = total <= 0 ? 0 : Math.min(1, abonado / total);
     const liquidada = !!cuenta.fechaLiquidacion;
-    return { total, costoRealTotal, utilidad, abonado, resta, saldoAFavor, piezas, progreso, liquidada };
+    return { subtotalArticulos, financiamientoPct, montoFinanciamiento, total, costoRealTotal, utilidad, abonado, resta, saldoAFavor, piezas, progreso, liquidada };
   },
 
   checkLiquidacion(cuenta) {
@@ -183,7 +186,7 @@ export const Store = {
     const art = { id: this.uuid(), producto: prod, cantidad: parseInt(cantidad), precioUnitario: parseFloat(precioUnitario), precioReal: parseFloat(precioReal) || 0, fecha: ahora };
     let cuenta = this.getCuentaActiva(clienteId);
     if (!cuenta) {
-      cuenta = { id: this.uuid(), clienteId, articulos: [art], abonos: [], fechaCreacion: ahora, fechaLiquidacion: null, estadoPedido: 'comprando' };
+      cuenta = { id: this.uuid(), clienteId, articulos: [art], abonos: [], fechaCreacion: ahora, fechaLiquidacion: null, estadoPedido: 'comprando', financiamientoPct: 0 };
       this.data.cuentas.push(cuenta);
     } else {
       cuenta.articulos.push(art);
@@ -254,6 +257,16 @@ export const Store = {
     if (!cuenta) return;
     cuenta.estadoPedido = estado;
     this.save();
+  },
+
+  setFinanciamiento(cuentaId, porcentaje) {
+    const cuenta = this.getCuenta(cuentaId);
+    if (!cuenta) return false;
+    const eraLiquidada = !!cuenta.fechaLiquidacion;
+    cuenta.financiamientoPct = Math.max(0, parseFloat(porcentaje) || 0);
+    this.checkLiquidacion(cuenta);
+    this.save();
+    return !eraLiquidada && !!cuenta.fechaLiquidacion;
   },
 
   reopenCuenta(cuentaId) {

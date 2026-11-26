@@ -364,6 +364,8 @@ nav.bottom-nav {
 .badge-red { background: var(--red-light); color: var(--red); }
 .badge-orange { background: #FFF3E0; color: #EF6C00; }
 .badge-blue { background: #E3F2FD; color: #1565C0; }
+.badge-purple { background: #F3E5F5; color: #6A1B9A; }
+.badge-teal { background: #E0F7FA; color: #00838F; }
 
 .chips-row {
   display: flex;

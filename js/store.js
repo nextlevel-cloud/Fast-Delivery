@@ -6,7 +6,8 @@ export const Store = {
     clientes: [],
     productos: PRODUCTOS_INICIALES,
     cuentas: [],
-    ultimoRespaldo: null
+    ultimoRespaldo: null,
+    ultimoAutoRespaldo: null
   },
 
   init() {
@@ -18,6 +19,8 @@ export const Store = {
         this.data.productos = parsed.productos || PRODUCTOS_INICIALES;
         this.data.cuentas = parsed.cuentas || [];
         this.data.ultimoRespaldo = parsed.ultimoRespaldo || null;
+        this.data.ultimoAutoRespaldo = parsed.ultimoAutoRespaldo || null;
+        if (this.asignarFoliosFaltantes()) this.save();
       } catch(e) {
         console.error("Error cargando datos:", e);
       }
@@ -26,8 +29,50 @@ export const Store = {
     }
   },
 
+  asignarFoliosFaltantes() {
+    let maxFolio = this.data.clientes.reduce((m, c) => Math.max(m, parseInt(c.folio) || 0), 0);
+    let cambio = false;
+    this.data.clientes.forEach(c => {
+      if (!c.folio || c.folio <= 0) {
+        maxFolio++;
+        c.folio = maxFolio;
+        cambio = true;
+      }
+    });
+    return cambio;
+  },
+
+  siguienteFolio() {
+    return this.data.clientes.reduce((m, c) => Math.max(m, parseInt(c.folio) || 0), 0) + 1;
+  },
+
+  formatFolio(cliente) {
+    if (!cliente || !cliente.folio || cliente.folio <= 0) return '';
+    return '#' + String(cliente.folio).padStart(3, '0');
+  },
+
   save() {
-    localStorage.setItem('pedidos_data', JSON.stringify(this.data));
+    const ahora = Date.now();
+    this.data.ultimoAutoRespaldo = ahora;
+    const payload = JSON.stringify(this.data);
+    localStorage.setItem('pedidos_data', payload);
+    try {
+      const autoSnapshot = JSON.stringify({
+        app: 'Pedidos',
+        version: 1,
+        fechaRespaldo: ahora,
+        clientes: this.data.clientes,
+        productos: this.data.productos,
+        cuentas: this.data.cuentas
+      });
+      localStorage.setItem('pedidos_auto_backup_latest', autoSnapshot);
+    } catch (_) {}
+  },
+
+  getAutoRespaldo() {
+    const raw = localStorage.getItem('pedidos_auto_backup_latest');
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch (_) { return null; }
   },
 
   uuid() {
@@ -89,7 +134,8 @@ export const Store = {
       nombre: limpio,
       telefono: (telefono || '').trim(),
       localidad: (localidad || '').trim(),
-      tipo: (tipo || '').trim()
+      tipo: (tipo || '').trim(),
+      folio: this.siguienteFolio()
     };
     this.data.clientes.push(nuevo);
     this.data.clientes.sort((a,b) => a.nombre.localeCompare(b.nombre));
@@ -166,16 +212,17 @@ export const Store = {
     const saldoAFavor = Math.max(0, abonado - total);
     const piezas = (cuenta.articulos || []).reduce((acc, a) => acc + a.cantidad, 0);
     const progreso = total <= 0 ? 0 : Math.min(1, abonado / total);
-    const liquidada = !!cuenta.fechaLiquidacion;
-    return { subtotalArticulos, financiamientoPct, montoFinanciamiento, total, costoRealTotal, utilidad, abonado, resta, saldoAFavor, piezas, progreso, liquidada };
+    const pagadaCompleta = total > 0 && (abonado + 0.005 >= total);
+    const liquidada = !!cuenta.fechaLiquidacion && (cuenta.estadoPedido || 'comprando') === 'entregado';
+    return { subtotalArticulos, financiamientoPct, montoFinanciamiento, total, costoRealTotal, utilidad, abonado, resta, saldoAFavor, piezas, progreso, pagadaCompleta, liquidada };
   },
 
   checkLiquidacion(cuenta) {
     const { total, abonado } = this.calcularTotales(cuenta);
-    const pagada = total > 0 && (abonado + 0.005 >= total);
-    if (pagada && !cuenta.fechaLiquidacion) {
+    const listaParaRegistro = total > 0 && (abonado + 0.005 >= total) && (cuenta.estadoPedido || 'comprando') === 'entregado';
+    if (listaParaRegistro && !cuenta.fechaLiquidacion) {
       cuenta.fechaLiquidacion = Date.now();
-    } else if (!pagada && cuenta.fechaLiquidacion) {
+    } else if (!listaParaRegistro && cuenta.fechaLiquidacion) {
       cuenta.fechaLiquidacion = null;
     }
   },
@@ -254,9 +301,12 @@ export const Store = {
 
   setEstadoPedido(cuentaId, estado) {
     const cuenta = this.getCuenta(cuentaId);
-    if (!cuenta) return;
+    if (!cuenta) return false;
+    const eraLiquidada = !!cuenta.fechaLiquidacion;
     cuenta.estadoPedido = estado;
+    this.checkLiquidacion(cuenta);
     this.save();
+    return !eraLiquidada && !!cuenta.fechaLiquidacion;
   },
 
   setFinanciamiento(cuentaId, porcentaje) {
@@ -274,13 +324,14 @@ export const Store = {
     if (!cuenta) return false;
     if (this.getCuentaActiva(cuenta.clienteId)) return false;
     cuenta.fechaLiquidacion = null;
+    cuenta.estadoPedido = 'comprando';
     this.save();
     return true;
   },
 
   getLiquidadasEnMes(year, month) {
     return this.data.cuentas.filter(c => {
-      if (!c.fechaLiquidacion) return false;
+      if (!c.fechaLiquidacion || (c.estadoPedido || 'comprando') !== 'entregado') return false;
       const d = new Date(c.fechaLiquidacion);
       return d.getFullYear() === year && d.getMonth() === month;
     });

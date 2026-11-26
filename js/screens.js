@@ -1,8 +1,10 @@
 ﻿import { Store } from './store.js';
 
 const ESTADOS_PEDIDO = [
-  { codigo: 'comprando', etiqueta: 'Pedido comprando', icono: '🛍️', badge: 'badge-orange' },
-  { codigo: 'en_camino', etiqueta: 'Pedido en camino', icono: '🚚', badge: 'badge-blue' },
+  { codigo: 'comprando', etiqueta: 'Comprando', icono: '🛍️', badge: 'badge-orange' },
+  { codigo: 'en_camino', etiqueta: 'En camino', icono: '🚚', badge: 'badge-blue' },
+  { codigo: 'cedi', etiqueta: 'CEDI', icono: '📦', badge: 'badge-purple' },
+  { codigo: 'envio_mx', etiqueta: 'Envío MX', icono: '🇲🇽', badge: 'badge-teal' },
   { codigo: 'entregado', etiqueta: 'Pedido entregado', icono: '✅', badge: 'badge-green' }
 ];
 
@@ -34,10 +36,14 @@ export const Screens = {
       `;
     }
 
+    const countLiquidadas = activas.filter(c => Store.calcularTotales(c).pagadaCompleta).length;
     const chipsHtml = `
       <div class="chips-row">
         <button class="chip-btn ${this.filtroEstado === null ? 'active' : ''}" onclick="window.Screens.setFiltroEstado(null)">
           ${this.filtroEstado === null ? '✓ ' : ''}Todos (${activas.length})
+        </button>
+        <button class="chip-btn ${this.filtroEstado === 'liquidadas' ? 'active' : ''}" onclick="window.Screens.setFiltroEstado('liquidadas')">
+          ${this.filtroEstado === 'liquidadas' ? '✓ ' : ''}Liquidadas (${countLiquidadas})
         </button>
         ${ESTADOS_PEDIDO.map(est => {
           const count = activas.filter(c => (c.estadoPedido || 'comprando') === est.codigo).length;
@@ -88,8 +94,13 @@ export const Screens = {
     const norm = Store.normalize(filtro);
     const filtradas = activas.filter(c => {
       const cl = Store.getCliente(c.clienteId);
-      const matchNombre = cl && (!norm || Store.normalize(cl.nombre).includes(norm));
-      const matchEstado = !this.filtroEstado || (c.estadoPedido || 'comprando') === this.filtroEstado;
+      const folioTxt = Store.formatFolio(cl);
+      const matchNombre = cl && (!norm || Store.normalize(cl.nombre).includes(norm) || Store.normalize(folioTxt).includes(norm));
+      const matchEstado = !this.filtroEstado
+        ? true
+        : (this.filtroEstado === 'liquidadas'
+            ? Store.calcularTotales(c).pagadaCompleta
+            : (c.estadoPedido || 'comprando') === this.filtroEstado);
       return matchNombre && matchEstado;
     });
 
@@ -105,19 +116,21 @@ export const Screens = {
       const cliente = Store.getCliente(cuenta.clienteId);
       const t = Store.calcularTotales(cuenta);
       const est = this.getEstadoInfo(cuenta);
+      const folio = Store.formatFolio(cliente);
       return `
         <div class="card clickable" onclick="window.App.openDetalle('${cuenta.id}')">
           <div style="display: flex; justify-content: space-between; align-items: flex-start;">
             <div>
-              <strong style="font-size: 1.05rem;">${cliente.nombre}</strong>
+              <strong style="font-size: 1.05rem;">${folio ? folio + ' • ' : ''}${cliente.nombre}</strong>
               <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">
                 ${t.piezas} pieza(s) • desde ${Store.formatDate(cuenta.fechaCreacion)}
               </div>
             </div>
             <button class="btn btn-outlined btn-sm" onclick="event.stopPropagation(); window.App.openNewOrder('${cliente.id}')">＋ Prenda</button>
           </div>
-          <div style="margin-top: 8px;">
+          <div style="margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap;">
             <span class="badge ${est.badge}">${est.icono} ${est.etiqueta}</span>
+            ${t.pagadaCompleta ? '<span class="badge badge-green">✔ Liquidada</span>' : ''}
           </div>
           <div style="margin-top: 10px;">
             <div class="totales-row">
@@ -533,7 +546,7 @@ Object.assign(Screens, {
         <div class="card">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
-              <h2 style="font-size: 1.25rem;">${cliente.nombre}</h2>
+              <h2 style="font-size: 1.25rem;">${Store.formatFolio(cliente) ? Store.formatFolio(cliente) + ' • ' : ''}${cliente.nombre}</h2>
               <div style="font-size: 0.85rem; color: var(--text-muted);">
                 ${cliente.telefono ? 'WhatsApp: ' + cliente.telefono : 'Sin WhatsApp registrado'}${cliente.localidad ? ' • ' + cliente.localidad : ''}${cliente.tipo === 'M' ? ' • M (Mayoreo)' : cliente.tipo === 'B' ? ' • B (Boutique)' : ''}
               </div>
@@ -542,9 +555,11 @@ Object.assign(Screens, {
           </div>
 
           <div style="margin: 10px 0;">
-            ${cuenta.fechaLiquidacion ? 
-              `<span class="badge badge-green">✔ LIQUIDADA el ${Store.formatDate(cuenta.fechaLiquidacion)}</span>` : 
-              `<span class="badge badge-red">PENDIENTE • desde ${Store.formatDate(cuenta.fechaCreacion)}</span>`
+            ${t.liquidada ? 
+              `<span class="badge badge-green">✔ EN REGISTRO • liquidada el ${Store.formatDate(cuenta.fechaLiquidacion)}</span>` : 
+              (t.pagadaCompleta ?
+                `<span class="badge badge-green">✔ PAGADA • falta marcar Pedido entregado</span>` :
+                `<span class="badge badge-red">PENDIENTE • desde ${Store.formatDate(cuenta.fechaCreacion)}</span>`)
             }
           </div>
 
@@ -702,8 +717,9 @@ Object.assign(Screens, {
 
     const cleanMoney = (val) => Store.formatMoney(val).replace(".", ".\u2060");
 
+    const folio = Store.formatFolio(cliente);
     let msg = `🧾 *ESTADO DE CUENTA*\n`;
-    msg += `Cliente: *${cliente.nombre}*\n`;
+    msg += `Cliente: *${cliente.nombre}${folio ? ' (' + folio + ')' : ''}*\n`;
     msg += `Fecha: *${Store.formatDate(Date.now())}*\n\n`;
 
     msg += `🛍️ *Artículos (${t.piezas} pieza(s)):*\n`;
@@ -740,18 +756,51 @@ Object.assign(Screens, {
     return { msg, cliente };
   },
 
+  destinoWhatsAppGrupo: false,
+
+  setDestinoWhatsApp(esGrupo, nombreCliente) {
+    this.destinoWhatsAppGrupo = esGrupo;
+    const btnP = document.getElementById('btnWaPersona');
+    const btnG = document.getElementById('btnWaGrupo');
+    const hint = document.getElementById('hintWaDestino');
+    if (btnP) {
+      btnP.className = !esGrupo ? 'btn btn-primary' : 'btn btn-outlined';
+      btnP.style.height = '42px';
+      btnP.textContent = !esGrupo ? '✓ Persona' : 'Persona';
+    }
+    if (btnG) {
+      btnG.className = esGrupo ? 'btn btn-primary' : 'btn btn-outlined';
+      btnG.style.height = '42px';
+      btnG.textContent = esGrupo ? '✓ Grupo' : 'Grupo';
+    }
+    if (hint) {
+      hint.textContent = esGrupo
+        ? 'Se abrirá WhatsApp para que elijas el grupo.'
+        : `Se enviará directo al chat de ${nombreCliente}.`;
+    }
+  },
+
   enviarWhatsApp(cuentaId) {
     const cuenta = Store.getCuenta(cuentaId);
     const cliente = Store.getCliente(cuenta.clienteId);
+    this.destinoWhatsAppGrupo = false;
     const modal = `
       <div class="modal-backdrop">
         <div class="modal-box">
           <div class="modal-title">Enviar por WhatsApp</div>
-          <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 14px;">
-            ¿Cómo deseas enviar el estado de cuenta a <strong>${cliente.nombre}</strong>?
+          <div class="form-group">
+            <span class="form-label">1. ¿A quién deseas enviarlo?</span>
+            <div style="display: flex; gap: 8px;">
+              <button type="button" id="btnWaPersona" class="btn btn-primary" style="flex: 1; height: 42px; font-size: 0.9rem;" onclick="window.Screens.setDestinoWhatsApp(false, '${cliente.nombre.replace(/'/g, "\\'")}')">✓ Persona</button>
+              <button type="button" id="btnWaGrupo" class="btn btn-outlined" style="flex: 1; height: 42px; font-size: 0.9rem;" onclick="window.Screens.setDestinoWhatsApp(true, '${cliente.nombre.replace(/'/g, "\\'")}')">Grupo</button>
+            </div>
+            <div id="hintWaDestino" style="font-size: 0.78rem; color: var(--text-muted); margin-top: 6px;">
+              Se enviará directo al chat de ${cliente.nombre}.
+            </div>
           </div>
+          <span class="form-label">2. Formato del envío</span>
           <div style="display: flex; flex-direction: column; gap: 10px;">
-            <button class="btn btn-whatsapp" onclick="window.Screens.closeModal(); window.Screens.enviarSoloTextoWhatsApp('${cuentaId}')">
+            <button class="btn btn-whatsapp" onclick="window.Screens.closeModal(); window.Screens.enviarSoloTextoWhatsApp('${cuentaId}', window.Screens.destinoWhatsAppGrupo)">
               💬 Solo texto
             </button>
             <input type="file" id="inputFotosWhatsApp" accept="image/*" multiple style="display: none;" onchange="window.Screens.enviarConFotosWhatsApp('${cuentaId}', this)">
@@ -768,9 +817,9 @@ Object.assign(Screens, {
     document.getElementById('modalContainer').innerHTML = modal;
   },
 
-  enviarSoloTextoWhatsApp(cuentaId) {
+  enviarSoloTextoWhatsApp(cuentaId, aGrupo = false) {
     const { msg, cliente } = this.armarMensajeWhatsApp(cuentaId);
-    let digitos = (cliente.telefono || '').replace(/\D/g, '');
+    let digitos = aGrupo ? '' : (cliente.telefono || '').replace(/\D/g, '');
     if (digitos.length === 10) digitos = '52' + digitos;
 
     const url = digitos ? 
@@ -877,8 +926,11 @@ Object.assign(Screens, {
   },
 
   cambiarEstadoPedido(cuentaId, estado) {
-    Store.setEstadoPedido(cuentaId, estado);
+    const pasoARegistro = Store.setEstadoPedido(cuentaId, estado);
     window.App.render();
+    if (pasoARegistro) {
+      alert("🎉 ¡Cuenta liquidada y entregada! Se guardó en el registro del mes.");
+    }
   },
 
   modalFinanciamiento(cuentaId) {
@@ -1244,7 +1296,7 @@ Object.assign(Screens, {
           return `
             <div class="card" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
               <div onclick="window.App.openNewOrder('${cl.id}')" style="cursor: pointer; flex: 1;">
-                <strong>${cl.nombre}${cl.tipo === 'M' ? ' [M • Mayoreo]' : cl.tipo === 'B' ? ' [B • Boutique]' : ''}</strong>
+                <strong>${Store.formatFolio(cl) ? Store.formatFolio(cl) + ' • ' : ''}${cl.nombre}${cl.tipo === 'M' ? ' [M • Mayoreo]' : cl.tipo === 'B' ? ' [B • Boutique]' : ''}</strong>
                 <div style="font-size: 0.8rem; color: var(--text-muted);">${cl.telefono || 'Sin WhatsApp'}${cl.localidad ? ' • ' + cl.localidad : ''}</div>
                 ${cuenta ? `<div style="color: var(--red); font-size: 0.8rem; font-weight: bold;">Debe ${Store.formatMoney(Store.calcularTotales(cuenta).resta)}</div>` : ''}
               </div>
@@ -1314,13 +1366,26 @@ Object.assign(Screens, {
 
   renderRespaldo() {
     const ultimo = Store.data.ultimoRespaldo;
+    const ultimoAuto = Store.data.ultimoAutoRespaldo;
+    const autoCopy = Store.getAutoRespaldo();
     const diasSinRespaldo = ultimo ? Math.floor((Date.now() - ultimo) / 86400000) : 999;
     const atrasado = !ultimo || diasSinRespaldo >= 7;
 
     return `
       <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div class="card" style="background: var(--green-light); border-color: #C8E6C9;">
+          <div class="totales-label" style="color: var(--green);">Respaldo automático activo</div>
+          <div class="totales-val" style="color: var(--green); font-size: 1rem; margin-top: 4px;">
+            ${ultimoAuto ? 'Última copia automática: ' + Store.formatDateTime(ultimoAuto) : 'Se creará automáticamente con tu primer cambio'}
+          </div>
+          <div style="font-size: 0.8rem; margin-top: 4px; color: var(--text);">
+            Cada cambio se guarda automáticamente en una copia local de seguridad.
+          </div>
+          ${autoCopy ? `<button class="btn btn-outlined btn-sm" style="margin-top: 10px; width: 100%;" onclick="window.Screens.restaurarAutoRespaldo()">♻️ Restaurar última copia automática</button>` : ''}
+        </div>
+
         <div class="card" style="background: ${atrasado ? 'var(--red-light)' : 'var(--green-light)'}; border-color: ${atrasado ? '#FFCDD2' : '#C8E6C9'};">
-          <div class="totales-label">Último respaldo</div>
+          <div class="totales-label">Último respaldo externo (archivo)</div>
           <div class="totales-val" style="color: ${atrasado ? 'var(--red)' : 'var(--green)'}; font-size: 1.1rem; margin-top: 4px;">
             ${!ultimo ? 'Nunca se ha respaldado' : Store.formatDateTime(ultimo) + ' (hace ' + diasSinRespaldo + ' días)'}
           </div>
@@ -1419,6 +1484,33 @@ Object.assign(Screens, {
       }
     };
     reader.readAsText(file);
+  },
+
+  restaurarAutoRespaldo() {
+    const autoCopy = Store.getAutoRespaldo();
+    if (!autoCopy) {
+      alert("Aún no hay copia automática disponible.");
+      return;
+    }
+    window.tempRespaldoParsed = autoCopy;
+    const modal = `
+      <div class="modal-backdrop">
+        <div class="modal-box">
+          <div class="modal-title">¿Restaurar copia automática?</div>
+          <div style="font-size: 0.85rem; line-height: 1.5; margin-bottom: 12px;">
+            ${autoCopy.fechaRespaldo ? '<strong>Creada:</strong> ' + Store.formatDateTime(autoCopy.fechaRespaldo) + '<br>' : ''}
+            • ${(autoCopy.clientes || []).length} cliente(s)<br>
+            • ${(autoCopy.productos || []).length} prenda(s)<br>
+            • ${(autoCopy.cuentas || []).length} cuenta(s)
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-outlined btn-sm" onclick="window.Screens.closeModal()">Cancelar</button>
+            <button class="btn btn-danger btn-sm" onclick="window.Screens.confirmRestaurar()">Restaurar</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('modalContainer').innerHTML = modal;
   },
 
   confirmRestaurar() {

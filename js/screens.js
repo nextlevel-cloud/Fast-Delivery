@@ -190,11 +190,11 @@ Object.assign(Screens, {
           </div>
 
           <div class="form-group">
-            <input type="number" id="nuevoPrecioReal" class="input-box" placeholder="Precio real (lo que te costó a ti - $)" step="any" oninput="window.Screens.calcResumenNuevo()">
+            <input type="number" id="nuevoPrecioReal" class="input-box" placeholder="Costo ($)" step="any" oninput="window.Screens.calcResumenNuevo()">
           </div>
 
           <div class="form-group">
-            <input type="number" id="nuevoPrecio" class="input-box" placeholder="Costo por pieza (al cliente - $)" step="any" oninput="window.Screens.calcResumenNuevo()">
+            <input type="number" id="nuevoPrecio" class="input-box" placeholder="Precio ($)" step="any" oninput="window.Screens.calcResumenNuevo()">
           </div>
 
           <div class="form-group">
@@ -826,11 +826,11 @@ Object.assign(Screens, {
             <input type="number" id="dlgEditArtCant" class="input-box" min="1" value="${a.cantidad}">
           </div>
           <div class="form-group">
-            <span class="form-label">Precio real (lo que te costó - $)</span>
+            <span class="form-label">Costo ($)</span>
             <input type="number" id="dlgEditArtReal" class="input-box" step="any" value="${a.precioReal > 0 ? a.precioReal : ''}">
           </div>
           <div class="form-group">
-            <span class="form-label">Costo por pieza (al cliente - $)</span>
+            <span class="form-label">Precio ($)</span>
             <input type="number" id="dlgEditArtPrecio" class="input-box" step="any" value="${a.precioUnitario}">
           </div>
           <div class="modal-footer">
